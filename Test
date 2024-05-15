@@ -1,0 +1,35 @@
+SELECT t2.companyid,
+       locationid,
+       T2.name,
+       T2.state as Selling_State,
+       servicetypeid,
+       statusid,
+       TO_CHAR(initial_date, 'YYYY-MM') as Initial_Month,
+       count(t1.id) cnt
+FROM
+    ( SELECT locationid,
+             purchasedate,
+             servicetypeid,
+             statusid,
+             t1.id,
+             CASE
+                 WHEN t1.servicechanged is NULL THEN t1.created
+                 ELSE t1.servicechanged
+             END as initial_date
+     from national.transaction t1 /* Defines t1, grab all of the transaction table */
+     join national.vehicle t2 on t1.id = t2.id /* Defines t2, grab all of vehicles table, append columns where t1.id = t2.id  */
+     where t1.deleted is not true ) T1 /* Previous FROM Statement is being defined as T1 */
+JOIN
+    ( SELECT *
+     FROM dblink(/* Reference another DB */ 'dbname=vitubilling', /* Find the db named vitubilling */ 'SELECT id, companyid, name, state FROM location' /* Select from the db, from the table 'location' the following fields */ ) AS T2(id int, companyid int, name text, state text) /* Define T2 and take only some of the data */ ) AS T2 ON T2.id = T1.locationid
+WHERE t2.companyid != 1
+    AND t1.initial_date between '2021-01-01' and now()
+GROUP BY 1,
+         2,
+         3,
+         4,
+         5,
+         6,
+         7
+ORDER BY 1,
+         5

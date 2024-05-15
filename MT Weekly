@@ -1,0 +1,52 @@
+-- MT-NTX
+------------------------------------------------------------------------------------------------------------
+	SELECT DISTINCT
+		co.id "Company ID",
+		co.name "Company Name",
+		tx.locationid "Location ID",
+		loc.name "Location Name",
+		CASE
+			WHEN suspended = false AND loc.deleted = false THEN 'Active'
+			WHEN suspended = true  AND loc.deleted = false THEN 'Suspended'
+			WHEN suspended = false AND loc.deleted = true THEN 'Deleted'
+			WHEN suspended = true  AND loc.deleted = true THEN 'Deleted & Suspended'
+		END as "Location Status", 
+		loc.state "State", 
+		STRING_AGG(DISTINCT 
+		CASE 
+			WHEN txitem.code = 56002  THEN 'MT-DTO'
+			WHEN txitem.code = 56003 THEN 'MT-NTX-DTO'
+			WHEN txitem.code = 57002 THEN 'MT-RPLC'
+			WHEN txitem.code = 57003 THEN 'MT-NTX-RPLC'
+			ELSE 'MT - Unknown' 
+		END, ', ') as "Apps",
+		tx.number as "Transaction ID",
+		STRING_AGG(DISTINCT txitem.code::TEXT, ', ') AS "Billing Code",
+		CASE
+			WHEN txitem.code in (56002, 56003) THEN 'MT-NTX Core'
+			WHEN txitem.code in (57002, 57003) THEN 'MT-NTX Supplemental'
+			ELSE 'MT - Unknown'
+		END as "Core Transaction Type",
+		CASE
+			WHEN txitem.code in (56002) THEN 'MT - Dealer Title Only'
+			WHEN txitem.code in (56003) THEN 'MT-NTX - Dealer Title Only'
+			WHEN txitem.code in (57002) THEN 'MT - Replacement Title'
+			WHEN txitem.code in (57003) THEN 'MT-NTX - Replacement Title'
+			ELSE 'MT - Unknown'
+		END as "Detailed Transaction Type",
+		TO_CHAR(tx.created,'YYYY-MM-DD') "Billing Created Date",
+		sum(txfee.amount) "Amount"
+	FROM
+		public.transaction as tx
+		LEFT JOIN transactionfee as txfee on tx.id = txfee.transactionid
+		LEFT JOIN transactionitem as txitem on txfee.item = txitem.code
+		LEFT JOIN transactiontype as txtype on txitem.type = txtype.code
+		LEFT JOIN location as loc on tx.locationid = loc.id
+		LEFT JOIN company as co on loc.companyid = co.id
+	WHERE
+        txitem.code in (56002, 56003, 57002, 57003)
+		--AND date(tx.created) >  CURRENT_DATE - INTERVAL '1 WEEKS'
+		AND date(tx.created) >= '2024-05-06'
+		AND date(tx.created) <= '2024-05-12'
+	GROUP BY 1,2,3,4,5,6,8,10,11,12
+	ORDER BY 12 asc
